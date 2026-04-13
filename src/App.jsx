@@ -29,6 +29,7 @@ export default function App() {
     return Client({
       game: LudoGame,
       board: LudoBoard,
+      debug: false,
       multiplayer: P2P({
         isHost: playerID === '0',
         peerOptions: {

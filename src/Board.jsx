@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { isSafeField } from './Game.js';
 
-// Das Statische SKIN_CONFIG behalten wir nur noch für Würfel und Board (falls du das willst).
-// Die Token-Skins kommen jetzt dynamisch aus dem G.skins State!
 const SKIN_CONFIG = {
 	dice: { 1: null, 2: null, 3: null, 4: null, 5: null, 6: null },
 	boardBackground: null
@@ -61,16 +59,18 @@ function getCellLayout(count, index) {
 	return { scale: 1, dx: 0, dy: 0 };
 }
 
-const DieFace = ({ value, isRolling }) => {
+const DieFace = ({ value, isRolling, canRoll }) => {
+	const cssClass = `die-face ${canRoll ? 'dice-pulse' : ''}`;
+
 	if (value && SKIN_CONFIG.dice[value]) {
-		return <img src={SKIN_CONFIG.dice[value]} alt={`Dice`} style={{ width: '60px', height: '60px', animation: isRolling ? 'roll3d 0.8s ease-out' : 'none', borderRadius: '12px' }} />;
+		return <img src={SKIN_CONFIG.dice[value]} className={cssClass} alt={`Dice`} style={{ width: '70px', height: '70px', animation: isRolling ? 'roll3d 0.8s ease-out' : 'none', borderRadius: '12px' }} />;
 	}
 	const dots = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
 	return (
-		<div style={{ width: '60px', height: '60px', backgroundColor: 'white', border: '3px solid #333', borderRadius: '12px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', padding: '7px', gap: '3px', boxShadow: '0 5px 0 #bbb', animation: isRolling ? 'roll3d 0.8s ease-out' : 'none' }}>
+		<div className={cssClass} style={{ width: '70px', height: '70px', backgroundColor: 'white', border: '3px solid #333', borderRadius: '12px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', padding: '8px', gap: '4px', animation: isRolling ? 'roll3d 0.8s ease-out' : 'none' }}>
 			{value && [...Array(9)].map((_, i) => (
 				<div key={i} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-					{dots[value] && dots[value].includes(i) && <div style={{ width: '11px', height: '11px', borderRadius: '50%', backgroundColor: '#333' }} />}
+					{dots[value] && dots[value].includes(i) && <div style={{ width: '13px', height: '13px', borderRadius: '50%', backgroundColor: '#333' }} />}
 				</div>
 			))}
 		</div>
@@ -83,6 +83,7 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 
 	const [localIsRolling, setLocalIsRolling] = useState(false);
 	const [tempDiceValue, setTempDiceValue] = useState(G.diceRoll);
+	const [persistentDice, setPersistentDice] = useState(1);
 	const [copiedCode, setCopiedCode] = useState(false);
 
 	const [visualProgress, setVisualProgress] = useState({ '0': [...G.players['0'].tokens], '1': [...G.players['1'].tokens] });
@@ -112,10 +113,19 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 		return () => clearInterval(stepInterval);
 	}, [G.players]);
 
-	useEffect(() => { if (!localIsRolling) setTempDiceValue(G.diceRoll); }, [G.diceRoll, localIsRolling]);
+	useEffect(() => {
+		if (!localIsRolling) setTempDiceValue(G.diceRoll);
+	}, [G.diceRoll, localIsRolling]);
+
+	useEffect(() => {
+		if (tempDiceValue !== null) setPersistentDice(tempDiceValue);
+	}, [tempDiceValue]);
+
+	const canRoll = isMyTurn && !G.hasRolled && !localIsRolling && !isAnimatingTokens;
+	const needsToMove = isMyTurn && G.hasRolled && !localIsRolling && !isAnimatingTokens;
 
 	const handleRollClick = () => {
-		if (!isMyTurn || G.hasRolled || isAnimatingTokens) return;
+		if (!canRoll) return;
 		setLocalIsRolling(true);
 		const scrambleInterval = setInterval(() => setTempDiceValue(Math.floor(Math.random() * 6) + 1), 100);
 		setTimeout(() => { clearInterval(scrambleInterval); moves.RollDice(); setLocalIsRolling(false); }, 800);
@@ -128,7 +138,6 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 		}
 	};
 
-	// --- NEU: LOGIK ZUM BILD-UPLOAD & KOMPRIMIEREN ---
 	const handleImageUpload = (event) => {
 		const file = event.target.files[0];
 		if (!file) return;
@@ -137,28 +146,15 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 		reader.onload = (e) => {
 			const img = new Image();
 			img.onload = () => {
-				// Bild verkleinern, um das P2P WebRTC Netzwerk nicht zu crashen
 				const canvas = document.createElement('canvas');
-				const MAX_SIZE = 120; // 120x120 Pixel reicht völlig für die Spiel-Map
-				let width = img.width;
-				let height = img.height;
-
-				if (width > height) {
-					if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; }
-				} else {
-					if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; }
-				}
-
-				canvas.width = width;
-				canvas.height = height;
+				const MAX_SIZE = 120;
+				let width = img.width; let height = img.height;
+				if (width > height) { if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; } }
+				else { if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; } }
+				canvas.width = width; canvas.height = height;
 				const ctx = canvas.getContext('2d');
 				ctx.drawImage(img, 0, 0, width, height);
-
-				// Konvertiere in komprimierten Base64 String (WebP oder JPEG ist kleiner als PNG)
-				const compressedBase64 = canvas.toDataURL('image/webp', 0.8);
-
-				// Sende den Skin an alle Spieler über das Netzwerk
-				moves.UpdateSkin(playerID, compressedBase64);
+				moves.UpdateSkin(playerID, canvas.toDataURL('image/webp', 0.8));
 			};
 			img.src = e.target.result;
 		};
@@ -167,84 +163,74 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 
 	return (
 		<div className="ludo-container">
-			<div className="ludo-sidebar">
-				<div className="ludo-code-card">
-					<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-						<p style={{ margin: 0, color: '#666', fontSize: '14px', textTransform: 'uppercase' }}>Game Code</p>
-						<button onClick={handleCopyCode} style={{ background: copiedCode ? '#e8f8f5' : '#f0f0f0', color: copiedCode ? '#27ae60' : '#555', border: 'none', padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
-							{copiedCode ? '✓ Copied Link' : 'Copy Link'}
-						</button>
-					</div>
-					<h3 style={{ margin: '10px 0 0 0', color: COLORS.text, fontSize: '24px' }}>{matchID}</h3>
-				</div>
 
-				<div className="ludo-info-card" style={{ borderTop: `8px solid ${myColor}` }}>
-					<h2 style={{ margin: '0 0 10px 0', color: COLORS.text }}>Ludo P2P</h2>
-					<p style={{ margin: 0, color: '#666' }}>You are: <span style={{ fontWeight: 'bold', color: myColor }}>Player {playerID}</span></p>
+			{/* KOMPAKTE KONTROLL-KARTE (Auf Mobile unten, auf Desktop links) */}
+			<div className="ludo-control-panel" style={{ borderTop: `8px solid ${myColor}` }}>
 
-					{/* NEU: UI für den Skin-Upload */}
-					<div style={{ marginTop: '15px', display: 'flex', gap: '10px', flexDirection: 'column' }}>
-						<label style={{ background: '#3498db', color: 'white', padding: '8px', borderRadius: '6px', textAlign: 'center', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
-							📷 Eigenen Skin hochladen
-							<input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} />
-						</label>
-						{G.skins[playerID] && (
-							<button onClick={() => moves.UpdateSkin(playerID, null)} style={{ background: '#e74c3c', color: 'white', border: 'none', padding: '8px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>
-								Skin entfernen
+				{/* Oberer Bereich: Infos & Buttons */}
+				<div className="ludo-panel-top">
+					<div className="ludo-panel-section">
+						<span className="ludo-label">Game Code</span>
+						<div className="ludo-value-row">
+							<h3 className="ludo-value">{matchID}</h3>
+							<button className="ludo-action-btn" onClick={handleCopyCode}>
+								{copiedCode ? '✓' : 'Copy'}
 							</button>
-						)}
+						</div>
 					</div>
 
-					<p style={{ fontWeight: 'bold', color: isMyTurn ? '#2ecc71' : '#95a5a6', marginTop: '15px' }}>
-						{isMyTurn ? "● Your Turn" : "○ Waiting for opponent..."}
-					</p>
+					<div className="ludo-panel-section" style={{ alignItems: 'flex-end' }}>
+						<span className="ludo-label">Spieler</span>
+						<div className="ludo-value-row">
+							<h3 className="ludo-value" style={{ color: myColor }}>{playerID}</h3>
+							<label className="ludo-action-btn skin-btn">
+								📷 Skin
+								<input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} />
+							</label>
+							{G.skins[playerID] && (
+								<button className="ludo-action-btn skin-remove-btn" onClick={() => moves.UpdateSkin(playerID, null)}>✕</button>
+							)}
+						</div>
+					</div>
 				</div>
 
-				<div className="ludo-dice-card">
-					{tempDiceValue ? <DieFace value={tempDiceValue} isRolling={localIsRolling} /> : (
-						<div style={{ width: '60px', height: '60px', border: '2px dashed #ccc', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>?</div>
+				{/* Unterer Bereich: Würfel (Ohne doppelten Text) */}
+				<div className="ludo-dice-wrapper" onClick={handleRollClick}>
+					<DieFace value={persistentDice} isRolling={localIsRolling} canRoll={canRoll} />
+					{needsToMove && (
+						<p className="ludo-action-hint">Wähle eine Figur</p>
 					)}
-					<button disabled={!isMyTurn || G.hasRolled || localIsRolling || isAnimatingTokens} onClick={handleRollClick}
-									style={{
-										padding: '12px 30px', fontSize: '18px', fontWeight: 'bold',
-										backgroundColor: isMyTurn && !G.hasRolled && !localIsRolling && !isAnimatingTokens ? '#333' : '#eee',
-										color: isMyTurn && !G.hasRolled && !localIsRolling && !isAnimatingTokens ? 'white' : '#999',
-										border: 'none', borderRadius: '8px', cursor: isMyTurn && !G.hasRolled && !localIsRolling && !isAnimatingTokens ? 'pointer' : 'not-allowed', transition: 'all 0.1s'
-									}}>
-						{localIsRolling ? 'Rolling...' : 'Roll Dice'}
-					</button>
 				</div>
+
 			</div>
 
+			{/* SPIELBRETT */}
 			<div className="ludo-board-wrapper">
 				<svg className="ludo-svg" viewBox="0 0 15 15">
 					<defs>
 						<pattern id="safePattern" x="0" y="0" width="0.2" height="0.2" patternUnits="userSpaceOnUse">
 							<circle cx="0.1" cy="0.1" r="0.04" fill="#666" opacity="0.2" />
 						</pattern>
-
-						{/* NEU: Clip-Path macht das hochgeladene Bild automatisch rund! */}
-						<clipPath id="circleClip">
-							<circle cx="0" cy="0" r="0.4" />
-						</clipPath>
-
+						<clipPath id="circleClip"><circle cx="0" cy="0" r="0.4" /></clipPath>
 						<g id="star"><polygon points="0,-0.3 0.1,-0.1 0.35,-0.1 0.15,0.05 0.25,0.3 0,0.15 -0.25,0.3 -0.15,0.05 -0.35,-0.1 -0.1,-0.1" fill="white" opacity="0.8" /></g>
 						<g id="dark-star"><polygon points="0,-0.3 0.1,-0.1 0.35,-0.1 0.15,0.05 0.25,0.3 0,0.15 -0.25,0.3 -0.15,0.05 -0.35,-0.1 -0.1,-0.1" fill="#333" opacity="0.3" /></g>
 						<g id="arrow-down"><polygon points="0.2,0.2 0.8,0.2 0.5,0.8" fill="white" opacity="0.9" /></g>
 						<g id="arrow-up"><polygon points="0.2,0.8 0.8,0.8 0.5,0.2" fill="white" opacity="0.9" /></g>
 						<g id="arrow-right"><polygon points="0.2,0.2 0.2,0.8 0.8,0.5" fill="white" opacity="0.9" /></g>
 						<g id="arrow-left"><polygon points="0.8,0.2 0.8,0.8 0.2,0.5" fill="white" opacity="0.9" /></g>
-
 						<radialGradient id="redToken" cx="30%" cy="30%" r="70%"><stop offset="0%" stopColor="#ff7a7a"/><stop offset="100%" stopColor="#b71c1c"/></radialGradient>
 						<radialGradient id="yellowToken" cx="30%" cy="30%" r="70%"><stop offset="0%" stopColor="#fff59d"/><stop offset="100%" stopColor="#f57f17"/></radialGradient>
 					</defs>
 
-					{/* 4 Colored Bases & Board */}
+					{SKIN_CONFIG.boardBackground && (
+						<image href={SKIN_CONFIG.boardBackground} x="0" y="0" width="15" height="15" preserveAspectRatio="none" opacity="0.9" />
+					)}
+
+					{/* Bases & Track */}
 					<rect x="0" y="0" width="6" height="6" rx="0.5" fill={COLORS.green} stroke="#333" strokeWidth="0.05" />
 					<rect x="9" y="0" width="6" height="6" rx="0.5" fill={COLORS[1]} stroke="#333" strokeWidth="0.05" />
 					<rect x="0" y="9" width="6" height="6" rx="0.5" fill={COLORS[0]} stroke="#333" strokeWidth="0.05" />
 					<rect x="9" y="9" width="6" height="6" rx="0.5" fill={COLORS.blue} stroke="#333" strokeWidth="0.05" />
-
 					<rect x="1" y="1" width="4" height="4" rx="0.5" fill="white" stroke="#333" strokeWidth="0.05" />
 					<rect x="10" y="1" width="4" height="4" rx="0.5" fill="white" stroke="#333" strokeWidth="0.05" />
 					<rect x="1" y="10" width="4" height="4" rx="0.5" fill="white" stroke="#333" strokeWidth="0.05" />
@@ -286,7 +272,7 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 					<use href="#arrow-right" x="0" y="7" /> <use href="#arrow-down" x="7" y="0" />
 					<use href="#arrow-left" x="14" y="7" /> <use href="#arrow-up" x="7" y="14" />
 
-					{/* Tokens Rendering */}
+					{/* Tokens */}
 					{(() => {
 						const tokensToRender = [];
 						const occupancyMap = {};
@@ -316,24 +302,14 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 									 onClick={() => isEligibleToken && moves.MoveToken(idx)}
 									 style={{ cursor: isEligibleToken ? 'pointer' : 'default', transition: 'transform 0.15s linear' }}>
 
-									<circle cx="0.05" cy="0.05" r="0.45" fill="rgba(0,0,0,0.3)" /> {/* Schatten */}
+									<circle cx="0.05" cy="0.05" r="0.45" fill="rgba(0,0,0,0.3)" />
 
-									{/* SKIN RENDER LOGIK */}
 									{G.skins[pID] ? (
-										// Wenn Skin vorhanden: Zeichne das hochgeladene Bild, nutze clipPath für Rundung
-										<image
-											href={G.skins[pID]}
-											x="-0.4" y="-0.4"
-											width="0.8" height="0.8"
-											clipPath="url(#circleClip)"
-											preserveAspectRatio="xMidYMid slice"
-										/>
+										<image href={G.skins[pID]} x="-0.4" y="-0.4" width="0.8" height="0.8" clipPath="url(#circleClip)" preserveAspectRatio="xMidYMid slice" />
 									) : (
-										// Fallback: Standard Kreis Token
 										<circle cx="0" cy="0" r="0.4" fill={`url(#${pID === '0' ? 'red' : 'yellow'}Token)`} stroke="white" strokeWidth="0.05"/>
 									)}
 
-									{/* Umrandung für den Skin und Ring-Animation für gültige Züge */}
 									{G.skins[pID] && <circle cx="0" cy="0" r="0.4" fill="none" stroke="white" strokeWidth="0.05" />}
 									{isEligibleToken && (
 										<circle cx="0" cy="0" r="0.5" fill="none" stroke={COLORS[pID]} strokeWidth="0.05" style={{ animation: 'ring 1.5s infinite' }} />
@@ -345,15 +321,61 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 				</svg>
 
 				<style>{`
-          .ludo-container { display: flex; justify-content: center; align-items: flex-start; gap: 40px; padding: 40px; font-family: system-ui, sans-serif; background-color: #2b3b75; background-image: radial-gradient(#3a4b86 15%, transparent 16%), radial-gradient(#3a4b86 15%, transparent 16%); background-size: 30px 30px; background-position: 0 0, 15px 15px; min-height: 100vh; }
-          .ludo-sidebar { width: 300px; display: flex; flex-direction: column; gap: 20px; }
-          .ludo-code-card, .ludo-info-card, .ludo-dice-card { background-color: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); padding: 20px; }
-          .ludo-dice-card { height: 250px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 15px; }
-          .ludo-board-wrapper { position: relative; box-shadow: 0 10px 40px rgba(0,0,0,0.4); border-radius: 16px; width: 600px; max-width: 100%; background: #4a62ab; padding: 10px;}
+          .ludo-container { 
+            display: flex; justify-content: center; align-items: center; gap: 40px; padding: 40px; 
+            font-family: system-ui, sans-serif; background-color: #2b3b75; 
+            background-image: radial-gradient(#3a4b86 15%, transparent 16%), radial-gradient(#3a4b86 15%, transparent 16%); 
+            background-size: 30px 30px; background-position: 0 0, 15px 15px; min-height: 100vh; 
+          }
+          
+          /* KONTROLL-PANEL (Unified Card) */
+          .ludo-control-panel { 
+            width: 340px; background: white; border-radius: 16px; 
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3); display: flex; flex-direction: column; overflow: hidden;
+          }
+          .ludo-panel-top { 
+            display: flex; justify-content: space-between; padding: 15px 20px; 
+            background: #f8f9fa; border-bottom: 1px solid #eee;
+          }
+          .ludo-panel-section { display: flex; flex-direction: column; }
+          .ludo-label { font-size: 10px; font-weight: bold; color: #999; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
+          .ludo-value-row { display: flex; align-items: center; gap: 8px; }
+          .ludo-value { font-size: 22px; font-weight: 800; color: #333; margin: 0; }
+          
+          /* BUTTONS */
+          .ludo-action-btn { 
+            background: #eee; border: none; padding: 6px 12px; border-radius: 8px; 
+            font-size: 12px; font-weight: bold; color: #555; cursor: pointer; transition: 0.2s; 
+          }
+          .ludo-action-btn:hover { background: #ddd; }
+          .skin-btn { background: #e3f2fd; color: #1976d2; padding: 4px 10px; font-size: 11px; }
+          .skin-remove-btn { background: #ffebee; color: #d32f2f; padding: 4px 8px; font-size: 11px; }
+          
+          /* WÜRFEL BEREICH */
+          .ludo-dice-wrapper { 
+            padding: 30px; display: flex; flex-direction: column; align-items: center; 
+            justify-content: center; background: white; min-height: 140px;
+          }
+          .die-face { box-shadow: 0 5px 0 #bbb; transition: border-color 0.3s; }
+          .dice-pulse { cursor: pointer; border-color: #2ecc71 !important; animation: pulse-green 1.5s infinite; }
+          .ludo-action-hint { margin: 15px 0 0 0; font-size: 14px; font-weight: bold; color: #2ecc71; animation: fade-in 0.3s ease; }
+          
+          /* BOARD */
+          .ludo-board-wrapper { position: relative; box-shadow: 0 10px 40px rgba(0,0,0,0.4); border-radius: 16px; width: 600px; max-width: 100%; background: #4a62ab; padding: 10px; }
           .ludo-svg { width: 100%; height: auto; display: block; background: #fff; border-radius: 10px; border: 4px solid #1e2c5e; box-sizing: border-box; }
-          @media (max-width: 960px) { .ludo-container { flex-direction: column; align-items: center; padding: 15px; gap: 20px; } .ludo-sidebar { display: contents; } .ludo-code-card, .ludo-info-card, .ludo-dice-card { width: 100%; max-width: 600px; box-sizing: border-box; } .ludo-board-wrapper { order: 3; margin: 0 auto; } }
+          
+          /* MOBILE LAYOUT MAGIE: Board Oben (Order 1), Panel Unten (Order 2) */
+          @media (max-width: 1200px) { 
+            .ludo-container { flex-direction: column; padding: 15px; gap: 20px; justify-content: flex-start; } 
+            .ludo-board-wrapper { order: 1; width: 100%; margin: 0 auto; }
+            .ludo-control-panel { order: 2; width: 100%; max-width: 600px; } 
+          }
+          
+          /* ANIMATIONEN */
+          @keyframes pulse-green { 0% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7), 0 5px 0 #bbb; } 70% { box-shadow: 0 0 0 15px rgba(46, 204, 113, 0), 0 5px 0 #bbb; } 100% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0), 0 5px 0 #bbb; } }
           @keyframes ring { 0% { transform: scale(0.8); opacity: 1; } 100% { transform: scale(1.4); opacity: 0; } }
           @keyframes roll3d { 0% { transform: scale(1) rotate(0deg); } 30% { transform: scale(0.6) rotateX(180deg) rotateY(180deg); } 60% { transform: scale(1.1) rotateX(360deg) rotateY(180deg) rotateZ(180deg); } 100% { transform: scale(1) rotateX(360deg) rotateY(360deg) rotateZ(360deg); } }
+          @keyframes fade-in { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
         `}</style>
 			</div>
 		</div>
