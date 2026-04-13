@@ -6,7 +6,6 @@ const SKIN_CONFIG = {
 	boardBackground: null
 };
 
-// Ungenutzte Felder
 const GREY = '#e0e0e0';
 
 const trackLayout = [
@@ -77,10 +76,11 @@ const DieFace = ({ value, isRolling, canRoll }) => {
 
 export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 	const isLobby = ctx.phase === 'lobby';
+	const isGameOver = ctx.phase === 'gameover';
+
 	const isMyTurn = playerID === ctx.currentPlayer;
 	const opponentID = playerID === '0' ? '1' : '0';
 
-	// Die vom Spieler gewählte Farbe aus dem Game-State holen
 	const myColor = G.colors[playerID];
 
 	const [tempDiceValue, setTempDiceValue] = useState(G.lastDiceRoll || 1);
@@ -123,8 +123,8 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 		return () => clearInterval(interval);
 	}, [G.isRolling, G.lastDiceRoll]);
 
-	const canRoll = !isLobby && isMyTurn && !G.hasRolled && !G.isRolling && !isAnimatingTokens;
-	const needsToMove = !isLobby && isMyTurn && G.hasRolled && !G.isRolling && !isAnimatingTokens;
+	const canRoll = !isLobby && !isGameOver && isMyTurn && !G.hasRolled && !G.isRolling && !isAnimatingTokens;
+	const needsToMove = !isLobby && !isGameOver && isMyTurn && G.hasRolled && !G.isRolling && !isAnimatingTokens;
 
 	const handleRollClick = () => {
 		if (!canRoll) return;
@@ -166,8 +166,43 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 	return (
 		<div className="ludo-container">
 
-			{/* LINKES PANEL (Lobby ODER In-Game) */}
-			<div className="ludo-control-panel" style={{ borderTop: `8px solid ${myColor}` }}>
+			{/* WIN DETECT OVERLAY (Nur sichtbar im GameOver Phase) */}
+			{isGameOver && (
+				<div className="ludo-gameover-overlay">
+					<h1 style={{ fontSize: '38px', margin: '0 0 20px 0', textShadow: '0 4px 10px rgba(0,0,0,0.5)' }}>
+						🎉 Spieler {G.winner} gewinnt! 🎉
+					</h1>
+
+					{/* Zeigt den Skin des Gewinners oder einen Kreis mit seiner Farbe */}
+					{G.skins[G.winner] ? (
+						<img src={G.skins[G.winner]} className="winner-avatar" style={{ borderColor: G.colors[G.winner] }} alt="Winner" />
+					) : (
+						<div className="winner-avatar" style={{ backgroundColor: G.colors[G.winner] }}></div>
+					)}
+
+					<p style={{ fontSize: '18px', color: '#eee', marginTop: '20px' }}>
+						Möchtest du noch eine Runde spielen?
+					</p>
+
+					<button
+						className="rematch-btn"
+						style={{
+							backgroundColor: G.rematchRequested[playerID] ? '#2ecc71' : myColor,
+							opacity: G.rematchRequested[playerID] ? 0.8 : 1
+						}}
+						onClick={() => !G.rematchRequested[playerID] && moves.RequestRematch(playerID)}
+					>
+						{G.rematchRequested[playerID] ? 'Warte auf Gegner...' : 'Revanche anfragen'}
+					</button>
+
+					{G.rematchRequested[opponentID] && !G.rematchRequested[playerID] && (
+						<p className="rematch-hint">Dein Gegner möchte Revanche!</p>
+					)}
+				</div>
+			)}
+
+			{/* LINKES PANEL */}
+			<div className="ludo-control-panel" style={{ borderTop: `8px solid ${myColor}`, zIndex: isGameOver ? 0 : 10 }}>
 				{isLobby ? (
 					<div style={{ padding: '20px' }}>
 						<span className="ludo-label">Game Code (Einladen)</span>
@@ -223,7 +258,7 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 
 			{/* SPIELBRETT */}
 			<div className="ludo-board-wrapper">
-				<svg className="ludo-svg" viewBox="0 0 15 15">
+				<svg className="ludo-svg" viewBox="0 0 15 15" style={{ filter: isGameOver ? 'blur(4px)' : 'none', transition: '0.5s' }}>
 					<defs>
 						<pattern id="safePattern" x="0" y="0" width="0.2" height="0.2" patternUnits="userSpaceOnUse">
 							<circle cx="0.1" cy="0.1" r="0.04" fill="#666" opacity="0.2" />
@@ -244,7 +279,7 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 						<image href={SKIN_CONFIG.boardBackground} x="0" y="0" width="15" height="15" preserveAspectRatio="none" opacity="0.9" />
 					)}
 
-					{/* 4 Bases (Dynamisch gefärbt) */}
+					{/* 4 Bases */}
 					<rect x="0" y="0" width="6" height="6" rx="0.5" fill={GREY} stroke="#333" strokeWidth="0.05" />
 					<rect x="9" y="0" width="6" height="6" rx="0.5" fill={G.colors['1']} stroke="#333" strokeWidth="0.05" />
 					<rect x="0" y="9" width="6" height="6" rx="0.5" fill={G.colors['0']} stroke="#333" strokeWidth="0.05" />
@@ -254,7 +289,6 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 					<rect x="1" y="10" width="4" height="4" rx="0.5" fill="white" stroke="#333" strokeWidth="0.05" />
 					<rect x="10" y="10" width="4" height="4" rx="0.5" fill="white" stroke="#333" strokeWidth="0.05" />
 
-					{/* Innere Deko-Punkte (Bases) */}
 					<g fill="#ccc"><circle cx="2" cy="2" r="0.4" /><circle cx="4" cy="2" r="0.4" /><circle cx="2" cy="4" r="0.4" /><circle cx="4" cy="4" r="0.4" /></g>
 					<g fill="#ccc"><circle cx="11" cy="11" r="0.4" /><circle cx="13" cy="11" r="0.4" /><circle cx="11" cy="13" r="0.4" /><circle cx="13" cy="13" r="0.4" /></g>
 
@@ -315,7 +349,7 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 
 						return tokensToRender.map(({ pID, idx, pos, scale, dx, dy }) => {
 							const trueProgress = G.players[pID].tokens[idx];
-							const isEligibleToken = !isLobby && isMyTurn && G.hasRolled && !G.isRolling && !isAnimatingTokens &&
+							const isEligibleToken = !isLobby && !isGameOver && isMyTurn && G.hasRolled && !G.isRolling && !isAnimatingTokens &&
 								pID === playerID && canTokenMove(trueProgress, G.diceRoll);
 
 							return (
@@ -343,11 +377,34 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 
 				<style>{`
           .ludo-container { 
+            position: relative;
             display: flex; justify-content: center; align-items: center; gap: 40px; padding: 40px; 
             font-family: system-ui, sans-serif; background-color: #2b3b75; 
             background-image: radial-gradient(#3a4b86 15%, transparent 16%), radial-gradient(#3a4b86 15%, transparent 16%); 
             background-size: 30px 30px; background-position: 0 0, 15px 15px; min-height: 100vh; 
           }
+
+          /* GAMEOVER OVERLAY */
+          .ludo-gameover-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 25, 55, 0.85); backdrop-filter: blur(8px);
+            z-index: 100; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; color: white;
+            text-align: center; animation: fade-in 0.5s ease;
+          }
+          .winner-avatar {
+            width: 140px; height: 140px; border-radius: 50%;
+            border: 6px solid white; box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+            object-fit: cover; background-color: white; margin-bottom: 20px;
+          }
+          .rematch-btn {
+            padding: 16px 36px; font-size: 18px; border-radius: 30px;
+            border: none; color: white; font-weight: bold; cursor: pointer;
+            transition: 0.2s; box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+          }
+          .rematch-btn:hover { transform: scale(1.05); }
+          .rematch-hint { color: #f1c40f; font-weight: bold; margin-top: 20px; font-size: 16px; animation: pulse-text 1.5s infinite; }
+          
           .ludo-control-panel { 
             width: 340px; background: white; border-radius: 16px; 
             box-shadow: 0 10px 40px rgba(0,0,0,0.3); display: flex; flex-direction: column; overflow: hidden;
@@ -384,7 +441,8 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
           @keyframes pulse-green { 0% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7), 0 5px 0 #bbb; } 70% { box-shadow: 0 0 0 15px rgba(46, 204, 113, 0), 0 5px 0 #bbb; } 100% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0), 0 5px 0 #bbb; } }
           @keyframes ring { 0% { transform: scale(0.8); opacity: 1; } 100% { transform: scale(1.4); opacity: 0; } }
           @keyframes roll3d { 0% { transform: scale(1) rotate(0deg); } 30% { transform: scale(0.6) rotateX(180deg) rotateY(180deg); } 60% { transform: scale(1.1) rotateX(360deg) rotateY(180deg) rotateZ(180deg); } 100% { transform: scale(1) rotateX(360deg) rotateY(360deg) rotateZ(360deg); } }
-          @keyframes fade-in { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+          @keyframes fade-in { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+          @keyframes pulse-text { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
         `}</style>
 			</div>
 		</div>

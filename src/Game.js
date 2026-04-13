@@ -1,5 +1,3 @@
-// Game.js
-
 export function getAbsolutePosition(playerID, progress) {
 	const startOffsets = { '0': 0, '1': 26 };
 	return (progress - 1 + startOffsets[playerID]) % 52;
@@ -28,6 +26,15 @@ function executeMove(G, ctx, events, tokenIndex) {
 	const newProgress = progress + roll;
 	const absPos = getAbsolutePosition(currentPlayer, newProgress);
 	G.players[currentPlayer].tokens[tokenIndex] = newProgress;
+
+	const hasWon = G.players[currentPlayer].tokens.every(t => t === 57);
+	if (hasWon) {
+		G.winner = currentPlayer;
+		G.diceRoll = null;
+		G.hasRolled = false;
+		events.setPhase('gameover');
+		return;
+	}
 
 	let captured = false;
 	let reachedBox = (newProgress === 57);
@@ -107,7 +114,6 @@ function MoveToken({ G, ctx, playerID, events }, tokenIndex) {
 	executeMove(G, ctx, events, tokenIndex);
 }
 
-// --- NEUE MOVES FÜR LOBBY & SKINS ---
 function UpdateSkin({ G, playerID }, pid, base64Image) {
 	const id = playerID !== undefined ? playerID : pid;
 	G.skins[id] = base64Image;
@@ -123,13 +129,34 @@ function ToggleReady({ G, playerID }, pid) {
 	G.ready[id] = !G.ready[id];
 }
 
+function RequestRematch({ G, events, playerID }, pid) {
+	const id = playerID !== undefined ? playerID : pid;
+	G.rematchRequested[id] = true;
+
+	if (G.rematchRequested['0'] && G.rematchRequested['1']) {
+		G.players['0'].tokens = [0, 0, 0, 0];
+		G.players['1'].tokens = [0, 0, 0, 0];
+		G.diceRoll = null;
+		G.lastDiceRoll = 1;
+		G.hasRolled = false;
+		G.isRolling = false;
+		G.sixesRolled = 0;
+		G.winner = null;
+		G.rematchRequested = { '0': false, '1': false };
+
+		events.setPhase('play');
+	}
+}
+
 export const LudoGame = {
 	name: 'p2p-ludo',
 	setup: () => ({
 		players: { '0': { tokens: [0, 0, 0, 0] }, '1': { tokens: [0, 0, 0, 0] } },
 		skins: { '0': null, '1': null },
-		colors: { '0': '#d32f2f', '1': '#fbc02d' }, // Rote und Gelbe Startfarben
-		ready: { '0': false, '1': false }, // Bereit-Status für die Lobby
+		colors: { '0': '#d32f2f', '1': '#fbc02d' },
+		ready: { '0': false, '1': false },
+		rematchRequested: { '0': false, '1': false },
+		winner: null,
 		diceRoll: null,
 		lastDiceRoll: 1,
 		hasRolled: false,
@@ -137,29 +164,24 @@ export const LudoGame = {
 		sixesRolled: 0,
 	}),
 
-	// PHASEN-MANAGEMENT
 	phases: {
-		// 1. LOBBY PHASE
 		lobby: {
 			start: true,
 			next: 'play',
 			turn: { activePlayers: { all: 'active' } },
 			moves: { ChangeColor, ToggleReady, UpdateSkin },
-			endIf: ({ G }) => (G.ready['0'] && G.ready['1']), // Startet das Spiel, wenn beide bereit sind
+			endIf: ({ G }) => (G.ready['0'] && G.ready['1']),
 		},
-		// 2. SPIEL PHASE
 		play: {
 			moves: { StartRoll, FinishRoll, MoveToken, UpdateSkin },
 			turn: {
 				activePlayers: { currentPlayer: 'playing', others: 'playing' },
 				stages: { playing: {} }
 			}
+		},
+		gameover: {
+			turn: { activePlayers: { all: 'active' } },
+			moves: { RequestRematch, UpdateSkin }
 		}
-	},
-
-	endIf: ({ G }) => {
-		for (let p in G.players) {
-			if (G.players[p].tokens.every(t => t === 57)) return { winner: p };
-		}
-	},
+	}
 };
