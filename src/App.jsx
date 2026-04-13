@@ -42,10 +42,11 @@ export default function App() {
 
   return (
     <div className="app-container">
+      <img className="header-image" src="./../test.png" alt="header-image"/>
       <div className="menu-card">
         <div className="menu-header">
-          <h1 className="menu-title">🎲 Ludo</h1>
-          <p className="menu-subtitle">Multiplayer P2P</p>
+          <h1 className="menu-title">Ludo</h1>
+          <p className="menu-subtitle">Approved von Henry</p>
         </div>
 
         <div className="menu-section">
@@ -100,6 +101,7 @@ export default function App() {
 
         .app-container {
           display: flex;
+          flex-direction: column;
           justify-content: center;
           align-items: center;
           width: 100vw;
@@ -112,6 +114,10 @@ export default function App() {
           padding: 20px;
           box-sizing: border-box;
         }
+        
+        .header-image {
+          width: 200px;
+        }
 
         .menu-card {
           background: white;
@@ -119,7 +125,7 @@ export default function App() {
           border-radius: 24px;
           box-shadow: 0 20px 60px rgba(0,0,0,0.4);
           width: 100%;
-          max-width: 380px;
+          max-width: 280px;
           text-align: center;
           animation: slide-up 0.5s ease-out;
         }

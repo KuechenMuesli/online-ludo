@@ -270,9 +270,6 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 						<g id="arrow-up"><polygon points="0.2,0.8 0.8,0.8 0.5,0.2" fill="white" opacity="0.9" /></g>
 						<g id="arrow-right"><polygon points="0.2,0.2 0.2,0.8 0.8,0.5" fill="white" opacity="0.9" /></g>
 						<g id="arrow-left"><polygon points="0.8,0.2 0.8,0.8 0.2,0.5" fill="white" opacity="0.9" /></g>
-
-						<radialGradient id="player0Token" cx="30%" cy="30%" r="70%"><stop offset="0%" stopColor="#ffffff" stopOpacity="0.4"/><stop offset="100%" stopColor={G.colors['0']}/></radialGradient>
-						<radialGradient id="player1Token" cx="30%" cy="30%" r="70%"><stop offset="0%" stopColor="#ffffff" stopOpacity="0.4"/><stop offset="100%" stopColor={G.colors['1']}/></radialGradient>
 					</defs>
 
 					{SKIN_CONFIG.boardBackground && (
@@ -357,12 +354,12 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 									 onClick={() => isEligibleToken && moves.MoveToken(idx)}
 									 style={{ cursor: isEligibleToken ? 'pointer' : 'default', transition: 'transform 0.15s linear' }}>
 
-									<circle cx="0.05" cy="0.05" r="0.45" fill="rgba(0,0,0,0.3)" />
+									<circle cx="0.05" cy="0.05" r="0.45" fill="rgba(0,0,0,1)" />
 
 									{G.skins[pID] ? (
 										<image href={G.skins[pID]} x="-0.4" y="-0.4" width="0.8" height="0.8" clipPath="url(#circleClip)" preserveAspectRatio="xMidYMid slice" />
 									) : (
-										<circle cx="0" cy="0" r="0.4" fill={`url(#player${pID}Token)`} stroke="white" strokeWidth="0.05"/>
+										<circle cx="0" cy="0" r="0.4" fill={G.colors[pID]} stroke="white" strokeWidth="0.05"/>
 									)}
 
 									{G.skins[pID] && <circle cx="0" cy="0" r="0.4" fill="none" stroke="white" strokeWidth="0.05" />}
@@ -376,7 +373,6 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 				</svg>
 
 				<style>{`
-          /* NEU: Globale Fixes auch hier im Board anwenden */
           #root {
             max-width: none !important;
             margin: 0 !important;
@@ -402,7 +398,6 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
             margin: 0; 
           }
 
-          /* GAMEOVER OVERLAY */
           .ludo-gameover-overlay {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(15, 25, 55, 0.85); backdrop-filter: blur(8px);

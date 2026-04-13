@@ -1,3 +1,18 @@
+const NORMAL_SIX_PROB = 1/6;
+const BOOSTED_SIX_PROB = 1/3;
+
+function getDiceRoll(isBoosted) {
+	const threshold = isBoosted ? BOOSTED_SIX_PROB : NORMAL_SIX_PROB;
+	const roll = Math.random();
+
+	if (roll < threshold) {
+		return 6;
+	}
+
+	// distribute rest evenly
+	return Math.floor(((roll - threshold) / (1 - threshold)) * 5) + 1;
+}
+
 export function getAbsolutePosition(playerID, progress) {
 	const startOffsets = { '0': 0, '1': 26 };
 	return (progress - 1 + startOffsets[playerID]) % 52;
@@ -68,9 +83,14 @@ function StartRoll({ G, ctx, playerID }) {
 	G.isRolling = true;
 }
 
-function FinishRoll({ G, ctx, playerID, events }, result) {
+function FinishRoll({ G, ctx, playerID, events }) {
 	if (playerID !== undefined && playerID !== ctx.currentPlayer) return;
 	if (!G.isRolling) return;
+
+	const tokens = G.players[ctx.currentPlayer].tokens;
+	const hasTokensInPlay = tokens.some(t => t > 0 && t < 57);
+
+	const result = getDiceRoll(!hasTokensInPlay);
 
 	G.isRolling = false;
 	G.diceRoll = result;
