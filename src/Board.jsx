@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { isSafeField } from './Game.js';
 
-// --- Static Data & Constants ---
 const COLORS = {
 	0: '#d32f2f', // Red (Spieler 1)
 	1: '#fbc02d', // Yellow (Spieler 2)
@@ -27,8 +26,6 @@ const trackLayout = [
 	{x:7, y:14}, {x:6, y:14}
 ];
 
-// --- Visual Helpers ---
-
 function getTokenCoordinates(playerID, progress, tokenIndex) {
 	if (progress === 0) {
 		const offsets = [{x: 1.5, y: 1.5}, {x: 3.5, y: 1.5}, {x: 1.5, y: 3.5}, {x: 3.5, y: 3.5}];
@@ -44,7 +41,7 @@ function getTokenCoordinates(playerID, progress, tokenIndex) {
 		return playerID === '0' ? { x: 7, y: 14 - step } : { x: 7, y: step };
 	}
 	if (progress === 57) {
-		return playerID === '0' ? { x: 7.5, y: 8 } : { x: 7.5, y: 7 };
+		return playerID === '0' ? { x: 7, y: 8 } : { x: 7, y: 6 };
 	}
 	return null;
 }
