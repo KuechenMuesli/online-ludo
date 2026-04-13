@@ -10,46 +10,7 @@ export function isSafeField(absolutePos) {
 	return safePositions.includes(absolutePos);
 }
 
-function StartRoll({ G, ctx, playerID }) {
-	if (playerID !== undefined && playerID !== ctx.currentPlayer) return;
-	if (G.hasRolled || G.isRolling) return;
-	G.isRolling = true;
-}
-
-function FinishRoll({ G, ctx, playerID, events, random }) {
-	if (playerID !== undefined && playerID !== ctx.currentPlayer) return;
-	if (!G.isRolling) return;
-
-	G.isRolling = false;
-	G.diceRoll = random.D6();
-	G.lastDiceRoll = G.diceRoll;
-	G.hasRolled = true;
-
-	if (G.diceRoll === 6) G.sixesRolled += 1;
-
-	const p = G.players[ctx.currentPlayer];
-	const canMoveAny = p.tokens.some(t => {
-		if (t === 0) return G.diceRoll === 6;
-		return (t + G.diceRoll) <= 57;
-	});
-
-	if (!canMoveAny) {
-		if (G.diceRoll === 6 && G.sixesRolled < 3) {
-			G.diceRoll = null;
-			G.hasRolled = false;
-		} else {
-			G.diceRoll = null;
-			G.hasRolled = false;
-			G.sixesRolled = 0;
-			events.endTurn();
-		}
-	}
-}
-
-function MoveToken({ G, ctx, playerID, events }, tokenIndex) {
-	if (playerID !== undefined && playerID !== ctx.currentPlayer) return;
-	if (!G.hasRolled) return;
-
+function executeMove(G, ctx, events, tokenIndex) {
 	const currentPlayer = ctx.currentPlayer;
 	const progress = G.players[currentPlayer].tokens[tokenIndex];
 	const roll = G.diceRoll;
@@ -63,8 +24,6 @@ function MoveToken({ G, ctx, playerID, events }, tokenIndex) {
 		}
 		return;
 	}
-
-	if (progress + roll > 57) return;
 
 	const newProgress = progress + roll;
 	const absPos = getAbsolutePosition(currentPlayer, newProgress);
@@ -96,6 +55,59 @@ function MoveToken({ G, ctx, playerID, events }, tokenIndex) {
 	}
 }
 
+function StartRoll({ G, ctx, playerID }) {
+	if (playerID !== undefined && playerID !== ctx.currentPlayer) return;
+	if (G.hasRolled || G.isRolling) return;
+	G.isRolling = true;
+}
+
+// FIX: Wir nehmen das Ergebnis (result) jetzt direkt vom Spieler an!
+function FinishRoll({ G, ctx, playerID, events }, result) {
+	if (playerID !== undefined && playerID !== ctx.currentPlayer) return;
+	if (!G.isRolling) return;
+
+	G.isRolling = false;
+	G.diceRoll = result; // Hier wird das gesendete Ergebnis 1:1 übernommen
+	G.lastDiceRoll = G.diceRoll;
+	G.hasRolled = true;
+
+	if (G.diceRoll === 6) G.sixesRolled += 1;
+
+	const p = G.players[ctx.currentPlayer];
+	const validMoves = [];
+
+	p.tokens.forEach((t, idx) => {
+		if (t === 0 && G.diceRoll === 6) validMoves.push(idx);
+		else if (t > 0 && t + G.diceRoll <= 57) validMoves.push(idx);
+	});
+
+	if (validMoves.length === 0) {
+		if (G.diceRoll === 6 && G.sixesRolled < 3) {
+			G.diceRoll = null;
+			G.hasRolled = false;
+		} else {
+			G.diceRoll = null;
+			G.hasRolled = false;
+			G.sixesRolled = 0;
+			events.endTurn();
+		}
+	} else if (validMoves.length === 1) {
+		executeMove(G, ctx, events, validMoves[0]);
+	}
+}
+
+function MoveToken({ G, ctx, playerID, events }, tokenIndex) {
+	if (playerID !== undefined && playerID !== ctx.currentPlayer) return;
+	if (!G.hasRolled) return;
+
+	const progress = G.players[ctx.currentPlayer].tokens[tokenIndex];
+	const roll = G.diceRoll;
+	if (progress === 0 && roll !== 6) return;
+	if (progress > 0 && progress + roll > 57) return;
+
+	executeMove(G, ctx, events, tokenIndex);
+}
+
 function UpdateSkin({ G, playerID }, pid, base64Image) {
 	const id = playerID !== undefined ? playerID : pid;
 	G.skins[id] = base64Image;
@@ -114,10 +126,8 @@ export const LudoGame = {
 	}),
 	moves: { StartRoll, FinishRoll, MoveToken, UpdateSkin },
 	turn: {
-		// Die Lösung für das Rechte-Problem: Jeder ist "playing"
 		activePlayers: { currentPlayer: 'playing', others: 'playing' },
 		stages: {
-			// Leeres Objekt bedeutet: Erlaubt alle im globalen "moves" Block definierten Moves für die Spieler in dieser Stage.
 			playing: {}
 		}
 	},

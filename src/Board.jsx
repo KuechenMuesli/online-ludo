@@ -111,7 +111,6 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 		return () => clearInterval(stepInterval);
 	}, [G.players]);
 
-	// Synchronisiert die Scramble-Animation über das Netzwerk
 	useEffect(() => {
 		let interval;
 		if (G.isRolling) {
@@ -125,15 +124,17 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 	const canRoll = isMyTurn && !G.hasRolled && !G.isRolling && !isAnimatingTokens;
 	const needsToMove = isMyTurn && G.hasRolled && !G.isRolling && !isAnimatingTokens;
 
+	// FIX: Wir würfeln lokal auf dem Gerät und schicken das fertige Ergebnis an alle
 	const handleRollClick = () => {
 		if (!canRoll) return;
 
-		// Startet die Animation bei beiden Spielern
 		moves.StartRoll();
 
-		// Beendet die Animation nach 800ms
+		// Sicheres Auswürfeln lokal!
+		const rollResult = Math.floor(Math.random() * 6) + 1;
+
 		setTimeout(() => {
-			moves.FinishRoll();
+			moves.FinishRoll(rollResult);
 		}, 800);
 	};
 
@@ -228,7 +229,6 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 						<image href={SKIN_CONFIG.boardBackground} x="0" y="0" width="15" height="15" preserveAspectRatio="none" opacity="0.9" />
 					)}
 
-					{/* Bases & Track */}
 					<rect x="0" y="0" width="6" height="6" rx="0.5" fill={COLORS.green} stroke="#333" strokeWidth="0.05" />
 					<rect x="9" y="0" width="6" height="6" rx="0.5" fill={COLORS[1]} stroke="#333" strokeWidth="0.05" />
 					<rect x="0" y="9" width="6" height="6" rx="0.5" fill={COLORS[0]} stroke="#333" strokeWidth="0.05" />
@@ -274,7 +274,6 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 					<use href="#arrow-right" x="0" y="7" /> <use href="#arrow-down" x="7" y="0" />
 					<use href="#arrow-left" x="14" y="7" /> <use href="#arrow-up" x="7" y="14" />
 
-					{/* Tokens */}
 					{(() => {
 						const tokensToRender = [];
 						const occupancyMap = {};
