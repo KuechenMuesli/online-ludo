@@ -61,13 +61,12 @@ function StartRoll({ G, ctx, playerID }) {
 	G.isRolling = true;
 }
 
-// FIX: Wir nehmen das Ergebnis (result) jetzt direkt vom Spieler an!
 function FinishRoll({ G, ctx, playerID, events }, result) {
 	if (playerID !== undefined && playerID !== ctx.currentPlayer) return;
 	if (!G.isRolling) return;
 
 	G.isRolling = false;
-	G.diceRoll = result; // Hier wird das gesendete Ergebnis 1:1 übernommen
+	G.diceRoll = result;
 	G.lastDiceRoll = G.diceRoll;
 	G.hasRolled = true;
 
@@ -108,9 +107,20 @@ function MoveToken({ G, ctx, playerID, events }, tokenIndex) {
 	executeMove(G, ctx, events, tokenIndex);
 }
 
+// --- NEUE MOVES FÜR LOBBY & SKINS ---
 function UpdateSkin({ G, playerID }, pid, base64Image) {
 	const id = playerID !== undefined ? playerID : pid;
 	G.skins[id] = base64Image;
+}
+
+function ChangeColor({ G, playerID }, pid, colorHex) {
+	const id = playerID !== undefined ? playerID : pid;
+	G.colors[id] = colorHex;
+}
+
+function ToggleReady({ G, playerID }, pid) {
+	const id = playerID !== undefined ? playerID : pid;
+	G.ready[id] = !G.ready[id];
 }
 
 export const LudoGame = {
@@ -118,19 +128,35 @@ export const LudoGame = {
 	setup: () => ({
 		players: { '0': { tokens: [0, 0, 0, 0] }, '1': { tokens: [0, 0, 0, 0] } },
 		skins: { '0': null, '1': null },
+		colors: { '0': '#d32f2f', '1': '#fbc02d' }, // Rote und Gelbe Startfarben
+		ready: { '0': false, '1': false }, // Bereit-Status für die Lobby
 		diceRoll: null,
 		lastDiceRoll: 1,
 		hasRolled: false,
 		isRolling: false,
 		sixesRolled: 0,
 	}),
-	moves: { StartRoll, FinishRoll, MoveToken, UpdateSkin },
-	turn: {
-		activePlayers: { currentPlayer: 'playing', others: 'playing' },
-		stages: {
-			playing: {}
+
+	// PHASEN-MANAGEMENT
+	phases: {
+		// 1. LOBBY PHASE
+		lobby: {
+			start: true,
+			next: 'play',
+			turn: { activePlayers: { all: 'active' } },
+			moves: { ChangeColor, ToggleReady, UpdateSkin },
+			endIf: ({ G }) => (G.ready['0'] && G.ready['1']), // Startet das Spiel, wenn beide bereit sind
+		},
+		// 2. SPIEL PHASE
+		play: {
+			moves: { StartRoll, FinishRoll, MoveToken, UpdateSkin },
+			turn: {
+				activePlayers: { currentPlayer: 'playing', others: 'playing' },
+				stages: { playing: {} }
+			}
 		}
 	},
+
 	endIf: ({ G }) => {
 		for (let p in G.players) {
 			if (G.players[p].tokens.every(t => t === 57)) return { winner: p };

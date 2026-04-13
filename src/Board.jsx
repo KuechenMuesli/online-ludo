@@ -6,9 +6,8 @@ const SKIN_CONFIG = {
 	boardBackground: null
 };
 
-const COLORS = {
-	0: '#d32f2f', 1: '#fbc02d', green: '#388e3c', blue: '#1976d2', text: '#333'
-};
+// Ungenutzte Felder
+const GREY = '#e0e0e0';
 
 const trackLayout = [
 	{x:6, y:13}, {x:6, y:12}, {x:6, y:11}, {x:6, y:10}, {x:6, y:9},
@@ -61,7 +60,6 @@ function getCellLayout(count, index) {
 
 const DieFace = ({ value, isRolling, canRoll }) => {
 	const cssClass = `die-face ${canRoll ? 'dice-pulse' : ''}`;
-
 	if (value && SKIN_CONFIG.dice[value]) {
 		return <img src={SKIN_CONFIG.dice[value]} className={cssClass} alt={`Dice`} style={{ width: '70px', height: '70px', animation: isRolling ? 'roll3d 0.8s ease-out' : 'none', borderRadius: '12px' }} />;
 	}
@@ -78,8 +76,12 @@ const DieFace = ({ value, isRolling, canRoll }) => {
 };
 
 export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
+	const isLobby = ctx.phase === 'lobby';
 	const isMyTurn = playerID === ctx.currentPlayer;
-	const myColor = COLORS[playerID];
+	const opponentID = playerID === '0' ? '1' : '0';
+
+	// Die vom Spieler gewählte Farbe aus dem Game-State holen
+	const myColor = G.colors[playerID];
 
 	const [tempDiceValue, setTempDiceValue] = useState(G.lastDiceRoll || 1);
 	const [copiedCode, setCopiedCode] = useState(false);
@@ -121,21 +123,14 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 		return () => clearInterval(interval);
 	}, [G.isRolling, G.lastDiceRoll]);
 
-	const canRoll = isMyTurn && !G.hasRolled && !G.isRolling && !isAnimatingTokens;
-	const needsToMove = isMyTurn && G.hasRolled && !G.isRolling && !isAnimatingTokens;
+	const canRoll = !isLobby && isMyTurn && !G.hasRolled && !G.isRolling && !isAnimatingTokens;
+	const needsToMove = !isLobby && isMyTurn && G.hasRolled && !G.isRolling && !isAnimatingTokens;
 
-	// FIX: Wir würfeln lokal auf dem Gerät und schicken das fertige Ergebnis an alle
 	const handleRollClick = () => {
 		if (!canRoll) return;
-
 		moves.StartRoll();
-
-		// Sicheres Auswürfeln lokal!
 		const rollResult = Math.floor(Math.random() * 6) + 1;
-
-		setTimeout(() => {
-			moves.FinishRoll(rollResult);
-		}, 800);
+		setTimeout(() => { moves.FinishRoll(rollResult); }, 800);
 	};
 
 	const handleCopyCode = () => {
@@ -171,43 +166,62 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 	return (
 		<div className="ludo-container">
 
+			{/* LINKES PANEL (Lobby ODER In-Game) */}
 			<div className="ludo-control-panel" style={{ borderTop: `8px solid ${myColor}` }}>
-
-				<div className="ludo-panel-top">
-					<div className="ludo-panel-section">
-						<span className="ludo-label">Game Code</span>
-						<div className="ludo-value-row">
+				{isLobby ? (
+					<div style={{ padding: '20px' }}>
+						<span className="ludo-label">Game Code (Einladen)</span>
+						<div className="ludo-value-row" style={{ marginBottom: '25px', paddingBottom: '15px', borderBottom: '1px solid #eee' }}>
 							<h3 className="ludo-value">{matchID}</h3>
-							<button className="ludo-action-btn" onClick={handleCopyCode}>
-								{copiedCode ? '✓' : 'Copy'}
-							</button>
+							<button className="ludo-action-btn" onClick={handleCopyCode}>{copiedCode ? '✓' : 'Copy'}</button>
 						</div>
-					</div>
 
-					<div className="ludo-panel-section" style={{ alignItems: 'flex-end' }}>
-						<span className="ludo-label">Spieler</span>
-						<div className="ludo-value-row">
-							<h3 className="ludo-value" style={{ color: myColor }}>{playerID}</h3>
-							<label className="ludo-action-btn skin-btn">
-								📷 Skin
+						<span className="ludo-label">Passe dein Team an</span>
+						<div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '25px' }}>
+							<input type="color" value={myColor} onChange={(e) => moves.ChangeColor(playerID, e.target.value)} style={{ width: '40px', height: '40px', padding: '0', border: 'none', borderRadius: '8px', cursor: 'pointer' }} title="Farbe wählen" />
+							<label className="ludo-action-btn skin-btn" style={{ margin: 0 }}>
+								📷 Eigenes Bild
 								<input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} />
 							</label>
-							{G.skins[playerID] && (
-								<button className="ludo-action-btn skin-remove-btn" onClick={() => moves.UpdateSkin(playerID, null)}>✕</button>
-							)}
+							{G.skins[playerID] && <button className="ludo-action-btn skin-remove-btn" style={{ margin: 0 }} onClick={() => moves.UpdateSkin(playerID, null)}>✕</button>}
+						</div>
+
+						<div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '12px', textAlign: 'center' }}>
+							<button
+								onClick={() => moves.ToggleReady(playerID)}
+								style={{ width: '100%', padding: '12px', borderRadius: '8px', border: 'none', background: G.ready[playerID] ? '#2ecc71' : '#3498db', color: 'white', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer', transition: '0.2s' }}>
+								{G.ready[playerID] ? '✓ Ich bin bereit' : 'Klicken wenn bereit'}
+							</button>
+							<p style={{ margin: '10px 0 0 0', fontSize: '12px', color: '#666' }}>
+								Gegner: {G.ready[opponentID] ? <span style={{color: '#2ecc71', fontWeight: 'bold'}}>Bereit</span> : 'Wartet noch...'}
+							</p>
 						</div>
 					</div>
-				</div>
+				) : (
+					<>
+						<div className="ludo-panel-top">
+							<div className="ludo-panel-section" style={{ flex: 1 }}>
+								<span className="ludo-label">Dein Team</span>
+								<div className="ludo-value-row">
+									<div style={{ width: '20px', height: '20px', borderRadius: '50%', background: myColor, border: '2px solid #333' }}></div>
+									<label className="ludo-action-btn skin-btn">
+										📷 Skin
+										<input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} />
+									</label>
+									{G.skins[playerID] && <button className="ludo-action-btn skin-remove-btn" onClick={() => moves.UpdateSkin(playerID, null)}>✕</button>}
+								</div>
+							</div>
+						</div>
 
-				<div className="ludo-dice-wrapper" onClick={handleRollClick}>
-					<DieFace value={tempDiceValue} isRolling={G.isRolling} canRoll={canRoll} />
-					{needsToMove && (
-						<p className="ludo-action-hint">Wähle eine Figur</p>
-					)}
-				</div>
-
+						<div className="ludo-dice-wrapper" onClick={handleRollClick}>
+							<DieFace value={tempDiceValue} isRolling={G.isRolling} canRoll={canRoll} />
+							{needsToMove && <p className="ludo-action-hint">Wähle eine Figur</p>}
+						</div>
+					</>
+				)}
 			</div>
 
+			{/* SPIELBRETT */}
 			<div className="ludo-board-wrapper">
 				<svg className="ludo-svg" viewBox="0 0 15 15">
 					<defs>
@@ -221,22 +235,28 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 						<g id="arrow-up"><polygon points="0.2,0.8 0.8,0.8 0.5,0.2" fill="white" opacity="0.9" /></g>
 						<g id="arrow-right"><polygon points="0.2,0.2 0.2,0.8 0.8,0.5" fill="white" opacity="0.9" /></g>
 						<g id="arrow-left"><polygon points="0.8,0.2 0.8,0.8 0.2,0.5" fill="white" opacity="0.9" /></g>
-						<radialGradient id="redToken" cx="30%" cy="30%" r="70%"><stop offset="0%" stopColor="#ff7a7a"/><stop offset="100%" stopColor="#b71c1c"/></radialGradient>
-						<radialGradient id="yellowToken" cx="30%" cy="30%" r="70%"><stop offset="0%" stopColor="#fff59d"/><stop offset="100%" stopColor="#f57f17"/></radialGradient>
+
+						<radialGradient id="player0Token" cx="30%" cy="30%" r="70%"><stop offset="0%" stopColor="#ffffff" stopOpacity="0.4"/><stop offset="100%" stopColor={G.colors['0']}/></radialGradient>
+						<radialGradient id="player1Token" cx="30%" cy="30%" r="70%"><stop offset="0%" stopColor="#ffffff" stopOpacity="0.4"/><stop offset="100%" stopColor={G.colors['1']}/></radialGradient>
 					</defs>
 
 					{SKIN_CONFIG.boardBackground && (
 						<image href={SKIN_CONFIG.boardBackground} x="0" y="0" width="15" height="15" preserveAspectRatio="none" opacity="0.9" />
 					)}
 
-					<rect x="0" y="0" width="6" height="6" rx="0.5" fill={COLORS.green} stroke="#333" strokeWidth="0.05" />
-					<rect x="9" y="0" width="6" height="6" rx="0.5" fill={COLORS[1]} stroke="#333" strokeWidth="0.05" />
-					<rect x="0" y="9" width="6" height="6" rx="0.5" fill={COLORS[0]} stroke="#333" strokeWidth="0.05" />
-					<rect x="9" y="9" width="6" height="6" rx="0.5" fill={COLORS.blue} stroke="#333" strokeWidth="0.05" />
+					{/* 4 Bases (Dynamisch gefärbt) */}
+					<rect x="0" y="0" width="6" height="6" rx="0.5" fill={GREY} stroke="#333" strokeWidth="0.05" />
+					<rect x="9" y="0" width="6" height="6" rx="0.5" fill={G.colors['1']} stroke="#333" strokeWidth="0.05" />
+					<rect x="0" y="9" width="6" height="6" rx="0.5" fill={G.colors['0']} stroke="#333" strokeWidth="0.05" />
+					<rect x="9" y="9" width="6" height="6" rx="0.5" fill={GREY} stroke="#333" strokeWidth="0.05" />
 					<rect x="1" y="1" width="4" height="4" rx="0.5" fill="white" stroke="#333" strokeWidth="0.05" />
 					<rect x="10" y="1" width="4" height="4" rx="0.5" fill="white" stroke="#333" strokeWidth="0.05" />
 					<rect x="1" y="10" width="4" height="4" rx="0.5" fill="white" stroke="#333" strokeWidth="0.05" />
 					<rect x="10" y="10" width="4" height="4" rx="0.5" fill="white" stroke="#333" strokeWidth="0.05" />
+
+					{/* Innere Deko-Punkte (Bases) */}
+					<g fill="#ccc"><circle cx="2" cy="2" r="0.4" /><circle cx="4" cy="2" r="0.4" /><circle cx="2" cy="4" r="0.4" /><circle cx="4" cy="4" r="0.4" /></g>
+					<g fill="#ccc"><circle cx="11" cy="11" r="0.4" /><circle cx="13" cy="11" r="0.4" /><circle cx="11" cy="13" r="0.4" /><circle cx="13" cy="13" r="0.4" /></g>
 
 					{trackLayout.map((c, i) => {
 						const isSafe = isSafeField(i);
@@ -250,22 +270,22 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 
 					{[1,2,3,4,5].map(step => (
 						<React.Fragment key={`home-${step}`}>
-							<rect x={step} y={7} width="1" height="1" fill={COLORS.green} stroke="#333" strokeWidth="0.02" />
-							<rect x={7} y={step} width="1" height="1" fill={COLORS[1]} stroke="#333" strokeWidth="0.02" />
-							<rect x={14-step} y={7} width="1" height="1" fill={COLORS.blue} stroke="#333" strokeWidth="0.02" />
-							<rect x={7} y={14-step} width="1" height="1" fill={COLORS[0]} stroke="#333" strokeWidth="0.02" />
+							<rect x={step} y={7} width="1" height="1" fill={GREY} stroke="#333" strokeWidth="0.02" />
+							<rect x={7} y={step} width="1" height="1" fill={G.colors['1']} stroke="#333" strokeWidth="0.02" />
+							<rect x={14-step} y={7} width="1" height="1" fill={GREY} stroke="#333" strokeWidth="0.02" />
+							<rect x={7} y={14-step} width="1" height="1" fill={G.colors['0']} stroke="#333" strokeWidth="0.02" />
 						</React.Fragment>
 					))}
 
-					<rect x="1" y="6" width="1" height="1" fill={COLORS.green} stroke="#333" strokeWidth="0.02" />
-					<rect x="8" y="1" width="1" height="1" fill={COLORS[1]} stroke="#333" strokeWidth="0.02" />
-					<rect x="13" y="8" width="1" height="1" fill={COLORS.blue} stroke="#333" strokeWidth="0.02" />
-					<rect x="6" y="13" width="1" height="1" fill={COLORS[0]} stroke="#333" strokeWidth="0.02" />
+					<rect x="1" y="6" width="1" height="1" fill={GREY} stroke="#333" strokeWidth="0.02" />
+					<rect x="8" y="1" width="1" height="1" fill={G.colors['1']} stroke="#333" strokeWidth="0.02" />
+					<rect x="13" y="8" width="1" height="1" fill={GREY} stroke="#333" strokeWidth="0.02" />
+					<rect x="6" y="13" width="1" height="1" fill={G.colors['0']} stroke="#333" strokeWidth="0.02" />
 
-					<polygon points="6,6 9,6 7.5,7.5" fill={COLORS[1]} stroke="#333" strokeWidth="0.02" />
-					<polygon points="9,6 9,9 7.5,7.5" fill={COLORS.blue} stroke="#333" strokeWidth="0.02" />
-					<polygon points="6,9 9,9 7.5,7.5" fill={COLORS[0]} stroke="#333" strokeWidth="0.02" />
-					<polygon points="6,6 6,9 7.5,7.5" fill={COLORS.green} stroke="#333" strokeWidth="0.02" />
+					<polygon points="6,6 9,6 7.5,7.5" fill={G.colors['1']} stroke="#333" strokeWidth="0.02" />
+					<polygon points="9,6 9,9 7.5,7.5" fill={GREY} stroke="#333" strokeWidth="0.02" />
+					<polygon points="6,9 9,9 7.5,7.5" fill={G.colors['0']} stroke="#333" strokeWidth="0.02" />
+					<polygon points="6,6 6,9 7.5,7.5" fill={GREY} stroke="#333" strokeWidth="0.02" />
 
 					<use href="#star" x="1.5" y="6.5" /> <use href="#dark-star" x="6.5" y="2.5" />
 					<use href="#star" x="8.5" y="1.5" /> <use href="#dark-star" x="12.5" y="6.5" />
@@ -295,7 +315,7 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 
 						return tokensToRender.map(({ pID, idx, pos, scale, dx, dy }) => {
 							const trueProgress = G.players[pID].tokens[idx];
-							const isEligibleToken = isMyTurn && G.hasRolled && !G.isRolling && !isAnimatingTokens &&
+							const isEligibleToken = !isLobby && isMyTurn && G.hasRolled && !G.isRolling && !isAnimatingTokens &&
 								pID === playerID && canTokenMove(trueProgress, G.diceRoll);
 
 							return (
@@ -308,12 +328,12 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 									{G.skins[pID] ? (
 										<image href={G.skins[pID]} x="-0.4" y="-0.4" width="0.8" height="0.8" clipPath="url(#circleClip)" preserveAspectRatio="xMidYMid slice" />
 									) : (
-										<circle cx="0" cy="0" r="0.4" fill={`url(#${pID === '0' ? 'red' : 'yellow'}Token)`} stroke="white" strokeWidth="0.05"/>
+										<circle cx="0" cy="0" r="0.4" fill={`url(#player${pID}Token)`} stroke="white" strokeWidth="0.05"/>
 									)}
 
 									{G.skins[pID] && <circle cx="0" cy="0" r="0.4" fill="none" stroke="white" strokeWidth="0.05" />}
 									{isEligibleToken && (
-										<circle cx="0" cy="0" r="0.5" fill="none" stroke={COLORS[pID]} strokeWidth="0.05" style={{ animation: 'ring 1.5s infinite' }} />
+										<circle cx="0" cy="0" r="0.5" fill="none" stroke={G.colors[pID]} strokeWidth="0.05" style={{ animation: 'ring 1.5s infinite' }} />
 									)}
 								</g>
 							);
@@ -328,7 +348,6 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
             background-image: radial-gradient(#3a4b86 15%, transparent 16%), radial-gradient(#3a4b86 15%, transparent 16%); 
             background-size: 30px 30px; background-position: 0 0, 15px 15px; min-height: 100vh; 
           }
-          
           .ludo-control-panel { 
             width: 340px; background: white; border-radius: 16px; 
             box-shadow: 0 10px 40px rgba(0,0,0,0.3); display: flex; flex-direction: column; overflow: hidden;
@@ -341,7 +360,6 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
           .ludo-label { font-size: 10px; font-weight: bold; color: #999; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
           .ludo-value-row { display: flex; align-items: center; gap: 8px; }
           .ludo-value { font-size: 22px; font-weight: 800; color: #333; margin: 0; }
-          
           .ludo-action-btn { 
             background: #eee; border: none; padding: 6px 12px; border-radius: 8px; 
             font-size: 12px; font-weight: bold; color: #555; cursor: pointer; transition: 0.2s; 
@@ -349,7 +367,6 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
           .ludo-action-btn:hover { background: #ddd; }
           .skin-btn { background: #e3f2fd; color: #1976d2; padding: 4px 10px; font-size: 11px; }
           .skin-remove-btn { background: #ffebee; color: #d32f2f; padding: 4px 8px; font-size: 11px; }
-          
           .ludo-dice-wrapper { 
             padding: 30px; display: flex; flex-direction: column; align-items: center; 
             justify-content: center; background: white; min-height: 140px;
@@ -357,16 +374,13 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
           .die-face { box-shadow: 0 5px 0 #bbb; transition: border-color 0.3s; }
           .dice-pulse { cursor: pointer; border-color: #2ecc71 !important; animation: pulse-green 1.5s infinite; }
           .ludo-action-hint { margin: 15px 0 0 0; font-size: 14px; font-weight: bold; color: #2ecc71; animation: fade-in 0.3s ease; }
-          
           .ludo-board-wrapper { position: relative; box-shadow: 0 10px 40px rgba(0,0,0,0.4); border-radius: 16px; width: 600px; max-width: 100%; background: #4a62ab; padding: 10px; }
           .ludo-svg { width: 100%; height: auto; display: block; background: #fff; border-radius: 10px; border: 4px solid #1e2c5e; box-sizing: border-box; }
-          
           @media (max-width: 1200px) { 
             .ludo-container { flex-direction: column; padding: 15px; gap: 20px; justify-content: flex-start; } 
             .ludo-board-wrapper { order: 1; width: 100%; margin: 0 auto; }
             .ludo-control-panel { order: 2; width: 100%; max-width: 600px; } 
           }
-          
           @keyframes pulse-green { 0% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7), 0 5px 0 #bbb; } 70% { box-shadow: 0 0 0 15px rgba(46, 204, 113, 0), 0 5px 0 #bbb; } 100% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0), 0 5px 0 #bbb; } }
           @keyframes ring { 0% { transform: scale(0.8); opacity: 1; } 100% { transform: scale(1.4); opacity: 0; } }
           @keyframes roll3d { 0% { transform: scale(1) rotate(0deg); } 30% { transform: scale(0.6) rotateX(180deg) rotateY(180deg); } 60% { transform: scale(1.1) rotateX(360deg) rotateY(180deg) rotateZ(180deg); } 100% { transform: scale(1) rotateX(360deg) rotateY(360deg) rotateZ(360deg); } }
