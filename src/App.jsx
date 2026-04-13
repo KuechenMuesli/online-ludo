@@ -42,7 +42,7 @@ export default function App() {
 
   return (
     <div className="app-container">
-      <img className="header-image" src="../public/header_image.png" alt="header-image"/>
+      <img className="header-image" src="../header_image.png" alt="header-image"/>
       <div className="menu-card">
         <div className="menu-header">
           <h1 className="menu-title">Ludo</h1>
