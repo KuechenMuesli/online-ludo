@@ -3,6 +3,7 @@ import { Client } from 'boardgame.io/react';
 import { P2P } from '@boardgame.io/p2p';
 import { LudoGame } from './Game.js';
 import { LudoBoard } from './Board.jsx';
+import headerImage  from './assets/header_image.png'
 
 export default function App() {
   const [matchID, setMatchID] = useState('');
@@ -42,7 +43,7 @@ export default function App() {
 
   return (
     <div className="app-container">
-      <img className="header-image" src="../header_image.png" alt="header-image"/>
+      <img className="header-image" src={headerImage} alt="header-image"/>
       <div className="menu-card">
         <div className="menu-header">
           <h1 className="menu-title">Ludo</h1>
