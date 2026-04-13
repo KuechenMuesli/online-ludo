@@ -10,7 +10,11 @@ export function isSafeField(absolutePos) {
 	return safePositions.includes(absolutePos);
 }
 
-function RollDice({ G, ctx, events }) {
+function RollDice({ G, ctx, playerID, events }) {
+	// SICHERHEIT: Blockiert den Move, wenn man nicht am Zug ist.
+	// (Nötig, da wir unten "activePlayers: all" gesetzt haben)
+	if (playerID !== undefined && playerID !== ctx.currentPlayer) return;
+
 	if (G.hasRolled) return;
 	G.diceRoll = Math.floor(Math.random() * 6) + 1;
 	G.hasRolled = true;
@@ -36,7 +40,10 @@ function RollDice({ G, ctx, events }) {
 	}
 }
 
-function MoveToken({ G, ctx, events }, tokenIndex) {
+function MoveToken({ G, ctx, playerID, events }, tokenIndex) {
+	// SICHERHEIT: Blockiert das Bewegen von Figuren außer der Reihe.
+	if (playerID !== undefined && playerID !== ctx.currentPlayer) return;
+
 	if (!G.hasRolled) return;
 
 	const currentPlayer = ctx.currentPlayer;
@@ -85,21 +92,28 @@ function MoveToken({ G, ctx, events }, tokenIndex) {
 	}
 }
 
-// NEUER MOVE: Speichert den komprimierten Base64 String im Spielstatus
-function UpdateSkin({ G }, playerID, base64Image) {
-	G.skins[playerID] = base64Image;
+function UpdateSkin({ G, playerID }, pid, base64Image) {
+	// Nutzt zur Sicherheit die vom Server/Framework verifizierte playerID (falls vorhanden)
+	// Jeder darf seinen EIGENEN Skin jederzeit ändern.
+	const id = playerID !== undefined ? playerID : pid;
+	G.skins[id] = base64Image;
 }
 
 export const LudoGame = {
 	name: 'p2p-ludo',
 	setup: () => ({
 		players: { '0': { tokens: [0, 0, 0, 0] }, '1': { tokens: [0, 0, 0, 0] } },
-		skins: { '0': null, '1': null }, // NEU: Platz für die Profilbilder der Spieler
+		skins: { '0': null, '1': null },
 		diceRoll: null,
 		hasRolled: false,
 		sixesRolled: 0,
 	}),
-	moves: { RollDice, MoveToken, UpdateSkin }, // NEU: UpdateSkin Move registriert
+	turn: {
+		// WICHTIG: Das erlaubt allen Spielern JEDERZEIT Moves an das Netzwerk zu senden.
+		// Die Zugreihenfolge für Würfeln/Laufen schützen wir in den Move-Funktionen selbst.
+		activePlayers: { all: 'playing' }
+	},
+	moves: { RollDice, MoveToken, UpdateSkin },
 	endIf: ({ G }) => {
 		for (let p in G.players) {
 			if (G.players[p].tokens.every(t => t === 57)) return { winner: p };

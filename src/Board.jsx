@@ -250,9 +250,6 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 					<rect x="1" y="10" width="4" height="4" rx="0.5" fill="white" stroke="#333" strokeWidth="0.05" />
 					<rect x="10" y="10" width="4" height="4" rx="0.5" fill="white" stroke="#333" strokeWidth="0.05" />
 
-					<text x="3" y="14.6" fill="white" fontSize="0.75" fontWeight="bold" textAnchor="middle">Spieler 1</text>
-					<text x="12" y="0.8" fill="white" fontSize="0.75" fontWeight="bold" textAnchor="middle">Spieler 2</text>
-
 					{trackLayout.map((c, i) => {
 						const isSafe = isSafeField(i);
 						return (
