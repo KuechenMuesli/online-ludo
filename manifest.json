@@ -1,0 +1,20 @@
+{
+  "name": "Ludo Online",
+  "short_name": "Ludo",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#2b3b75",
+  "theme_color": "#2b3b75",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
