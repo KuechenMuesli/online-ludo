@@ -5,11 +5,7 @@ export function getAbsolutePosition(playerID, progress) {
 	return (progress - 1 + startOffsets[playerID]) % 52;
 }
 
-// Prüft, ob ein Feld auf der 52er-Strecke sicher ist
 export function isSafeField(absolutePos) {
-	// Startfelder: 0 (Rot), 26 (Gelb)
-	// X-Markierte Felder: 8, 21, 34, 47 (immer 8 Schritte nach Start + globale Zwischenfelder)
-	// Basierend auf deinem Bild sind die sicheren Felder:
 	const safePositions = [0, 8, 13, 21, 26, 34, 39, 47];
 	return safePositions.includes(absolutePos);
 }
@@ -66,7 +62,6 @@ function MoveToken({ G, ctx, events }, tokenIndex) {
 	let captured = false;
 	let reachedBox = (newProgress === 57);
 
-	// Capturing nur wenn nicht auf Sicherheitsfeld
 	if (newProgress <= 51 && !isSafeField(absPos)) {
 		const opponent = currentPlayer === '0' ? '1' : '0';
 		G.players[opponent].tokens.forEach((oppProg, oppIdx) => {
@@ -90,15 +85,21 @@ function MoveToken({ G, ctx, events }, tokenIndex) {
 	}
 }
 
+// NEUER MOVE: Speichert den komprimierten Base64 String im Spielstatus
+function UpdateSkin({ G }, playerID, base64Image) {
+	G.skins[playerID] = base64Image;
+}
+
 export const LudoGame = {
 	name: 'p2p-ludo',
 	setup: () => ({
 		players: { '0': { tokens: [0, 0, 0, 0] }, '1': { tokens: [0, 0, 0, 0] } },
+		skins: { '0': null, '1': null }, // NEU: Platz für die Profilbilder der Spieler
 		diceRoll: null,
 		hasRolled: false,
 		sixesRolled: 0,
 	}),
-	moves: { RollDice, MoveToken },
+	moves: { RollDice, MoveToken, UpdateSkin }, // NEU: UpdateSkin Move registriert
 	endIf: ({ G }) => {
 		for (let p in G.players) {
 			if (G.players[p].tokens.every(t => t === 57)) return { winner: p };
