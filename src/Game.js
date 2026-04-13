@@ -10,13 +10,19 @@ export function isSafeField(absolutePos) {
 	return safePositions.includes(absolutePos);
 }
 
-function RollDice({ G, ctx, playerID, events }) {
-	// SICHERHEIT: Blockiert den Move, wenn man nicht am Zug ist.
-	// (Nötig, da wir unten "activePlayers: all" gesetzt haben)
+function StartRoll({ G, ctx, playerID }) {
 	if (playerID !== undefined && playerID !== ctx.currentPlayer) return;
+	if (G.hasRolled || G.isRolling) return;
+	G.isRolling = true;
+}
 
-	if (G.hasRolled) return;
-	G.diceRoll = Math.floor(Math.random() * 6) + 1;
+function FinishRoll({ G, ctx, playerID, events, random }) {
+	if (playerID !== undefined && playerID !== ctx.currentPlayer) return;
+	if (!G.isRolling) return;
+
+	G.isRolling = false;
+	G.diceRoll = random.D6();
+	G.lastDiceRoll = G.diceRoll;
 	G.hasRolled = true;
 
 	if (G.diceRoll === 6) G.sixesRolled += 1;
@@ -41,9 +47,7 @@ function RollDice({ G, ctx, playerID, events }) {
 }
 
 function MoveToken({ G, ctx, playerID, events }, tokenIndex) {
-	// SICHERHEIT: Blockiert das Bewegen von Figuren außer der Reihe.
 	if (playerID !== undefined && playerID !== ctx.currentPlayer) return;
-
 	if (!G.hasRolled) return;
 
 	const currentPlayer = ctx.currentPlayer;
@@ -93,8 +97,6 @@ function MoveToken({ G, ctx, playerID, events }, tokenIndex) {
 }
 
 function UpdateSkin({ G, playerID }, pid, base64Image) {
-	// Nutzt zur Sicherheit die vom Server/Framework verifizierte playerID (falls vorhanden)
-	// Jeder darf seinen EIGENEN Skin jederzeit ändern.
 	const id = playerID !== undefined ? playerID : pid;
 	G.skins[id] = base64Image;
 }
@@ -105,15 +107,20 @@ export const LudoGame = {
 		players: { '0': { tokens: [0, 0, 0, 0] }, '1': { tokens: [0, 0, 0, 0] } },
 		skins: { '0': null, '1': null },
 		diceRoll: null,
+		lastDiceRoll: 1,
 		hasRolled: false,
+		isRolling: false,
 		sixesRolled: 0,
 	}),
+	moves: { StartRoll, FinishRoll, MoveToken, UpdateSkin },
 	turn: {
-		// WICHTIG: Das erlaubt allen Spielern JEDERZEIT Moves an das Netzwerk zu senden.
-		// Die Zugreihenfolge für Würfeln/Laufen schützen wir in den Move-Funktionen selbst.
-		activePlayers: { all: 'playing' }
+		// Die Lösung für das Rechte-Problem: Jeder ist "playing"
+		activePlayers: { currentPlayer: 'playing', others: 'playing' },
+		stages: {
+			// Leeres Objekt bedeutet: Erlaubt alle im globalen "moves" Block definierten Moves für die Spieler in dieser Stage.
+			playing: {}
+		}
 	},
-	moves: { RollDice, MoveToken, UpdateSkin },
 	endIf: ({ G }) => {
 		for (let p in G.players) {
 			if (G.players[p].tokens.every(t => t === 57)) return { winner: p };

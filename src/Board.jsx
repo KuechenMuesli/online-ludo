@@ -67,7 +67,7 @@ const DieFace = ({ value, isRolling, canRoll }) => {
 	}
 	const dots = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
 	return (
-		<div className={cssClass} style={{ width: '70px', height: '70px', backgroundColor: 'white', border: '3px solid #333', borderRadius: '12px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', padding: '8px', gap: '4px', animation: isRolling ? 'roll3d 0.8s ease-out' : 'none' }}>
+		<div className={cssClass} style={{ width: '70px', height: '70px', backgroundColor: 'white', border: '3px solid #333', borderRadius: '12px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', padding: '8px', gap: '4px', animation: isRolling ? 'roll3d 0.8s ease-out infinite' : 'none' }}>
 			{value && [...Array(9)].map((_, i) => (
 				<div key={i} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
 					{dots[value] && dots[value].includes(i) && <div style={{ width: '13px', height: '13px', borderRadius: '50%', backgroundColor: '#333' }} />}
@@ -81,9 +81,7 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 	const isMyTurn = playerID === ctx.currentPlayer;
 	const myColor = COLORS[playerID];
 
-	const [localIsRolling, setLocalIsRolling] = useState(false);
-	const [tempDiceValue, setTempDiceValue] = useState(G.diceRoll);
-	const [persistentDice, setPersistentDice] = useState(1);
+	const [tempDiceValue, setTempDiceValue] = useState(G.lastDiceRoll || 1);
 	const [copiedCode, setCopiedCode] = useState(false);
 
 	const [visualProgress, setVisualProgress] = useState({ '0': [...G.players['0'].tokens], '1': [...G.players['1'].tokens] });
@@ -113,22 +111,30 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 		return () => clearInterval(stepInterval);
 	}, [G.players]);
 
+	// Synchronisiert die Scramble-Animation über das Netzwerk
 	useEffect(() => {
-		if (!localIsRolling) setTempDiceValue(G.diceRoll);
-	}, [G.diceRoll, localIsRolling]);
+		let interval;
+		if (G.isRolling) {
+			interval = setInterval(() => setTempDiceValue(Math.floor(Math.random() * 6) + 1), 100);
+		} else {
+			setTempDiceValue(G.lastDiceRoll || 1);
+		}
+		return () => clearInterval(interval);
+	}, [G.isRolling, G.lastDiceRoll]);
 
-	useEffect(() => {
-		if (tempDiceValue !== null) setPersistentDice(tempDiceValue);
-	}, [tempDiceValue]);
-
-	const canRoll = isMyTurn && !G.hasRolled && !localIsRolling && !isAnimatingTokens;
-	const needsToMove = isMyTurn && G.hasRolled && !localIsRolling && !isAnimatingTokens;
+	const canRoll = isMyTurn && !G.hasRolled && !G.isRolling && !isAnimatingTokens;
+	const needsToMove = isMyTurn && G.hasRolled && !G.isRolling && !isAnimatingTokens;
 
 	const handleRollClick = () => {
 		if (!canRoll) return;
-		setLocalIsRolling(true);
-		const scrambleInterval = setInterval(() => setTempDiceValue(Math.floor(Math.random() * 6) + 1), 100);
-		setTimeout(() => { clearInterval(scrambleInterval); moves.RollDice(); setLocalIsRolling(false); }, 800);
+
+		// Startet die Animation bei beiden Spielern
+		moves.StartRoll();
+
+		// Beendet die Animation nach 800ms
+		setTimeout(() => {
+			moves.FinishRoll();
+		}, 800);
 	};
 
 	const handleCopyCode = () => {
@@ -164,10 +170,8 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 	return (
 		<div className="ludo-container">
 
-			{/* KOMPAKTE KONTROLL-KARTE (Auf Mobile unten, auf Desktop links) */}
 			<div className="ludo-control-panel" style={{ borderTop: `8px solid ${myColor}` }}>
 
-				{/* Oberer Bereich: Infos & Buttons */}
 				<div className="ludo-panel-top">
 					<div className="ludo-panel-section">
 						<span className="ludo-label">Game Code</span>
@@ -194,9 +198,8 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 					</div>
 				</div>
 
-				{/* Unterer Bereich: Würfel (Ohne doppelten Text) */}
 				<div className="ludo-dice-wrapper" onClick={handleRollClick}>
-					<DieFace value={persistentDice} isRolling={localIsRolling} canRoll={canRoll} />
+					<DieFace value={tempDiceValue} isRolling={G.isRolling} canRoll={canRoll} />
 					{needsToMove && (
 						<p className="ludo-action-hint">Wähle eine Figur</p>
 					)}
@@ -204,7 +207,6 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 
 			</div>
 
-			{/* SPIELBRETT */}
 			<div className="ludo-board-wrapper">
 				<svg className="ludo-svg" viewBox="0 0 15 15">
 					<defs>
@@ -294,7 +296,7 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 
 						return tokensToRender.map(({ pID, idx, pos, scale, dx, dy }) => {
 							const trueProgress = G.players[pID].tokens[idx];
-							const isEligibleToken = isMyTurn && G.hasRolled && !localIsRolling && !isAnimatingTokens &&
+							const isEligibleToken = isMyTurn && G.hasRolled && !G.isRolling && !isAnimatingTokens &&
 								pID === playerID && canTokenMove(trueProgress, G.diceRoll);
 
 							return (
@@ -328,7 +330,6 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
             background-size: 30px 30px; background-position: 0 0, 15px 15px; min-height: 100vh; 
           }
           
-          /* KONTROLL-PANEL (Unified Card) */
           .ludo-control-panel { 
             width: 340px; background: white; border-radius: 16px; 
             box-shadow: 0 10px 40px rgba(0,0,0,0.3); display: flex; flex-direction: column; overflow: hidden;
@@ -342,7 +343,6 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
           .ludo-value-row { display: flex; align-items: center; gap: 8px; }
           .ludo-value { font-size: 22px; font-weight: 800; color: #333; margin: 0; }
           
-          /* BUTTONS */
           .ludo-action-btn { 
             background: #eee; border: none; padding: 6px 12px; border-radius: 8px; 
             font-size: 12px; font-weight: bold; color: #555; cursor: pointer; transition: 0.2s; 
@@ -351,7 +351,6 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
           .skin-btn { background: #e3f2fd; color: #1976d2; padding: 4px 10px; font-size: 11px; }
           .skin-remove-btn { background: #ffebee; color: #d32f2f; padding: 4px 8px; font-size: 11px; }
           
-          /* WÜRFEL BEREICH */
           .ludo-dice-wrapper { 
             padding: 30px; display: flex; flex-direction: column; align-items: center; 
             justify-content: center; background: white; min-height: 140px;
@@ -360,18 +359,15 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
           .dice-pulse { cursor: pointer; border-color: #2ecc71 !important; animation: pulse-green 1.5s infinite; }
           .ludo-action-hint { margin: 15px 0 0 0; font-size: 14px; font-weight: bold; color: #2ecc71; animation: fade-in 0.3s ease; }
           
-          /* BOARD */
           .ludo-board-wrapper { position: relative; box-shadow: 0 10px 40px rgba(0,0,0,0.4); border-radius: 16px; width: 600px; max-width: 100%; background: #4a62ab; padding: 10px; }
           .ludo-svg { width: 100%; height: auto; display: block; background: #fff; border-radius: 10px; border: 4px solid #1e2c5e; box-sizing: border-box; }
           
-          /* MOBILE LAYOUT MAGIE: Board Oben (Order 1), Panel Unten (Order 2) */
           @media (max-width: 1200px) { 
             .ludo-container { flex-direction: column; padding: 15px; gap: 20px; justify-content: flex-start; } 
             .ludo-board-wrapper { order: 1; width: 100%; margin: 0 auto; }
             .ludo-control-panel { order: 2; width: 100%; max-width: 600px; } 
           }
           
-          /* ANIMATIONEN */
           @keyframes pulse-green { 0% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7), 0 5px 0 #bbb; } 70% { box-shadow: 0 0 0 15px rgba(46, 204, 113, 0), 0 5px 0 #bbb; } 100% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0), 0 5px 0 #bbb; } }
           @keyframes ring { 0% { transform: scale(0.8); opacity: 1; } 100% { transform: scale(1.4); opacity: 0; } }
           @keyframes roll3d { 0% { transform: scale(1) rotate(0deg); } 30% { transform: scale(0.6) rotateX(180deg) rotateY(180deg); } 60% { transform: scale(1.1) rotateX(360deg) rotateY(180deg) rotateZ(180deg); } 100% { transform: scale(1) rotateX(360deg) rotateY(360deg) rotateZ(360deg); } }
