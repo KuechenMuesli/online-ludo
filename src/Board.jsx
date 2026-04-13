@@ -376,12 +376,30 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 				</svg>
 
 				<style>{`
+          /* NEU: Globale Fixes auch hier im Board anwenden */
+          #root {
+            max-width: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100%;
+          }
+
+          body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background-color: #2b3b75; 
+          }
+
           .ludo-container { 
             position: relative;
             display: flex; justify-content: center; align-items: center; gap: 40px; padding: 40px; 
             font-family: system-ui, sans-serif; background-color: #2b3b75; 
             background-image: radial-gradient(#3a4b86 15%, transparent 16%), radial-gradient(#3a4b86 15%, transparent 16%); 
-            background-size: 30px 30px; background-position: 0 0, 15px 15px; min-height: 100vh; 
+            background-size: 30px 30px; background-position: 0 0, 15px 15px; 
+            min-height: 100vh;
+            width: 100vw; /* NEU: Stellt sicher, dass es die volle Breite einnimmt */
+            box-sizing: border-box; /* NEU: Behält Padding bei ohne Scrollbars zu erzwingen */
+            margin: 0; 
           }
 
           /* GAMEOVER OVERLAY */
