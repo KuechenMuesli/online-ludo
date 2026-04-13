@@ -129,8 +129,9 @@ export function LudoBoard({ ctx, G, moves, playerID, matchID = "LOCAL" }) {
 	const handleRollClick = () => {
 		if (!canRoll) return;
 		moves.StartRoll();
-		const rollResult = Math.floor(Math.random() * 6) + 1;
-		setTimeout(() => { moves.FinishRoll(rollResult); }, 800);
+		setTimeout(() => {
+			moves.FinishRoll();
+		}, 800);
 	};
 
 	const handleCopyCode = () => {

@@ -1,15 +1,15 @@
 const NORMAL_SIX_PROB = 1/6;
 const BOOSTED_SIX_PROB = 1/3;
 
-function getDiceRoll(isBoosted) {
+function getDiceRoll(isBoosted, random) {
 	const threshold = isBoosted ? BOOSTED_SIX_PROB : NORMAL_SIX_PROB;
-	const roll = Math.random();
+
+	const roll = random.Number();
 
 	if (roll < threshold) {
 		return 6;
 	}
 
-	// distribute rest evenly
 	return Math.floor(((roll - threshold) / (1 - threshold)) * 5) + 1;
 }
 
@@ -33,7 +33,10 @@ function executeMove(G, ctx, events, tokenIndex) {
 			G.players[currentPlayer].tokens[tokenIndex] = 1;
 			G.diceRoll = null;
 			G.hasRolled = false;
-			if (G.sixesRolled >= 3) { G.sixesRolled = 0; events.endTurn(); }
+			if (G.sixesRolled >= 3) {
+				G.sixesRolled = 0;
+				events.endTurn();
+			}
 		}
 		return;
 	}
@@ -83,14 +86,14 @@ function StartRoll({ G, ctx, playerID }) {
 	G.isRolling = true;
 }
 
-function FinishRoll({ G, ctx, playerID, events }) {
+function FinishRoll({ G, ctx, random, playerID, events }) {
 	if (playerID !== undefined && playerID !== ctx.currentPlayer) return;
 	if (!G.isRolling) return;
 
 	const tokens = G.players[ctx.currentPlayer].tokens;
 	const hasTokensInPlay = tokens.some(t => t > 0 && t < 57);
 
-	const result = getDiceRoll(!hasTokensInPlay);
+	const result = getDiceRoll(!hasTokensInPlay, random);
 
 	G.isRolling = false;
 	G.diceRoll = result;
